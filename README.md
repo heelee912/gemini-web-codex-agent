@@ -1,4 +1,9 @@
+
+
 # Subtitle Rollout Tool
+<img width="1203" height="677" alt="image" src="https://github.com/user-attachments/assets/dc682806-931f-4106-bf3d-588a39f25629" />
+
+(완전한 배포본이 아니라 에이전트에게 환경에 맞게 수정해달라고 할 필요가 있습니다.)
 
 Windows 데스크톱에서 Gemini UI 자동화 워커와 codex cli의 루프를 통해 자막 생성 작업을 돌리는 도구입니다.
 
