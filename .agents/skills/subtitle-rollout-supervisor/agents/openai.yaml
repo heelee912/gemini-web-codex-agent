@@ -1,0 +1,6 @@
+interface:
+  display_name: "Subtitle Rollout Supervisor"
+  short_description: "Drives long subtitle rollout loops until DONE or HARD_BLOCKED"
+  default_prompt: "Use $subtitle-rollout-supervisor to rebuild state from disk, dispatch one bounded batch, verify files, and continue without conversational progress replies."
+policy:
+  allow_implicit_invocation: false

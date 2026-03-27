@@ -1,3 +1,14 @@
+.codex/
+rollout.env
 __pycache__/
-*.pyc
-.DS_Store
+*.log
+
+# Local episode inputs and outputs
+episode-*/
+reference_subtitles/
+
+# UI inspection artifacts
+timer/chrome_window_ocr.txt
+timer/timer_state.json
+timer/uia_*.json
+timer/uia_*.txt
