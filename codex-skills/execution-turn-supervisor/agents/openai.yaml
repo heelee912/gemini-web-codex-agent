@@ -1,0 +1,4 @@
+interface:
+  display_name: "Execution Turn Supervisor"
+  short_description: "Long-running subagent supervision with strict completion contracts"
+  default_prompt: "Use $execution-turn-supervisor to run a state.json-driven execution turn with JSON-only subagent outputs and UI-first recovery before HARD_BLOCKED."
