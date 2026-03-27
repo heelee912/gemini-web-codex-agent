@@ -358,13 +358,17 @@ $bitmap.Save('{windows_path}', [System.Drawing.Imaging.ImageFormat]::Png)
 $graphics.Dispose()
 $bitmap.Dispose()
 """
-    completed = subprocess.run(
-        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-        capture_output=True,
-        text=True,
-        errors="replace",
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        print(f"[screenshot] skipped: {exc}", flush=True)
+        return None
     if completed.returncode == 0 and screenshot_path.exists():
         print(f"[screenshot] {screenshot_path}", flush=True)
         return screenshot_path

@@ -760,6 +760,39 @@ class RolloutRulesTests(unittest.TestCase):
 
         self.assertEqual(converted, "/mnt/d/workspace/subtitle_rollout/tools/gemini_ui_batch_shell.py")
 
+    def test_run_batch_ignores_missing_powershell_for_screenshots(self) -> None:
+        runtime = WorkerRuntime(
+            label="env-python",
+            command_prefix=("python",),
+            uses_windows_paths=False,
+        )
+        batch = [
+            StateItem(
+                id="E01-P1-S01",
+                episode=1,
+                pass_number=1,
+                segment=1,
+                path="one",
+                generated=False,
+                exists=False,
+                size=0,
+                quality_state="unchecked",
+            )
+        ]
+        completed = types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        def fake_run(command: list[str], **_kwargs: object) -> object:
+            if command and command[0] == "powershell.exe":
+                raise FileNotFoundError("powershell.exe")
+            return completed
+
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch.object(supervisor_module, "SCREENSHOT_DIR", Path(temp_dir)), \
+             mock.patch.object(supervisor_module.subprocess, "run", side_effect=fake_run):
+            result = supervisor_module.run_batch(runtime, batch)
+
+        self.assertEqual(result.returncode, 0)
+
     def test_main_pauses_when_worker_is_interrupted_with_explicit_stop(self) -> None:
         runtime = WorkerRuntime(
             label="windows-cmd-python",

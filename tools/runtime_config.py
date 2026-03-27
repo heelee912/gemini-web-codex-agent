@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,7 @@ DEFAULT_PROMPT_PATH = Path("timer") / "worker_prompt_ko.txt"
 DEFAULT_STRICT_PROMPT_PATH = Path("timer") / "worker_prompt_ko_strict.txt"
 DEFAULT_MEDIA_EXTENSIONS = (".mp4", ".mkv", ".mov", ".m4v", ".avi", ".webm")
 _LOADED_ENV_FILE: Path | None = None
+WINDOWS_DRIVE_ABSOLUTE_PATTERN = re.compile(r"^[A-Za-z]:[\\/]")
 
 
 def parse_env_assignments(text: str) -> dict[str, str]:
@@ -53,9 +55,51 @@ def load_env_file(path: Path, *, override: bool = False) -> dict[str, str]:
     return assignments
 
 
+def running_on_windows_host() -> bool:
+    return os.name == "nt"
+
+
+def looks_like_windows_absolute_path(value: str | Path) -> bool:
+    raw = str(value).strip()
+    return bool(WINDOWS_DRIVE_ABSOLUTE_PATTERN.match(raw)) or raw.startswith("\\\\") or raw.startswith("//")
+
+
+def convert_windows_absolute_path(value: str | Path) -> Path:
+    raw = os.path.expanduser(str(value).strip())
+    if running_on_windows_host() or not looks_like_windows_absolute_path(raw):
+        return Path(raw)
+
+    try:
+        completed = subprocess.run(
+            ["wslpath", "-a", "-u", raw],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (FileNotFoundError, OSError, subprocess.CalledProcessError):
+        normalized = raw.replace("\\", "/")
+        drive_match = WINDOWS_DRIVE_ABSOLUTE_PATTERN.match(raw)
+        if drive_match:
+            drive = raw[0].lower()
+            suffix = normalized[2:].lstrip("/")
+            return Path(f"/mnt/{drive}/{suffix}") if suffix else Path(f"/mnt/{drive}")
+        return Path(normalized)
+
+    converted = completed.stdout.strip()
+    return Path(converted) if converted else Path(raw.replace("\\", "/"))
+
+
+def resolve_runtime_path(value: str | Path) -> Path:
+    raw = os.path.expanduser(str(value))
+    if looks_like_windows_absolute_path(raw):
+        return convert_windows_absolute_path(raw)
+    return Path(raw)
+
+
 def resolve_config_path(value: str | Path, base_dir: Path) -> Path:
-    candidate = Path(value).expanduser()
-    return candidate if candidate.is_absolute() else (base_dir / candidate)
+    raw = os.path.expanduser(str(value))
+    candidate = resolve_runtime_path(raw)
+    return candidate if candidate.is_absolute() or looks_like_windows_absolute_path(raw) else (base_dir / candidate)
 
 
 def env_value(*names: str) -> str | None:
@@ -68,7 +112,7 @@ def env_value(*names: str) -> str | None:
 
 def env_path(*names: str) -> Path | None:
     value = env_value(*names)
-    return Path(value) if value else None
+    return resolve_runtime_path(value) if value else None
 
 
 def env_config_path(base_dir: Path, *names: str) -> Path | None:
@@ -361,7 +405,7 @@ def manifest_segment_paths(root_dir: Path, episode: int, segment: int) -> list[P
 
     candidates: list[Path] = []
     for raw_value in raw_values:
-        raw_path = Path(raw_value)
+        raw_path = resolve_runtime_path(raw_value)
         if raw_path.is_absolute():
             candidates.append(raw_path)
             continue

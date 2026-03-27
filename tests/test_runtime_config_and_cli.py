@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import build_state  # noqa: E402
 import rollout_cli  # noqa: E402
+import runtime_config as runtime_config_module  # noqa: E402
 from runtime_config import (  # noqa: E402
     default_env_file,
     discover_episode_numbers,
@@ -103,6 +104,33 @@ class RuntimeConfigAndCliTests(unittest.TestCase):
             str(Path("D:/SubtitleRolloutData/reference_subtitles")),
         )
 
+    def test_setup_translates_windows_absolute_paths_for_non_windows_hosts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            runtime_config_module,
+            "running_on_windows_host",
+            return_value=False,
+        ), mock.patch.object(
+            runtime_config_module.subprocess,
+            "run",
+            side_effect=FileNotFoundError("wslpath"),
+        ):
+            env_file = Path(temp_dir) / "rollout.env"
+            env_file.write_text("ROLLOUT_PROJECT_LABEL=Subtitle Rollout\n", encoding="utf-8")
+
+            updated = rollout_cli.create_or_update_setup(
+                env_file,
+                workspace_root_value="D:/SubtitleRolloutData",
+                reference_dir_value="D:/SubtitleRolloutData/reference_subtitles",
+            )
+
+            assignments = parse_env_assignments(updated.read_text(encoding="utf-8"))
+
+        self.assertEqual(Path(assignments["ROLLOUT_WORKSPACE_ROOT"]).as_posix(), "/mnt/d/SubtitleRolloutData")
+        self.assertEqual(
+            Path(assignments["ROLLOUT_REFERENCE_DIR"]).as_posix(),
+            "/mnt/d/SubtitleRolloutData/reference_subtitles",
+        )
+
     def test_workspace_root_can_point_outside_repo(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
             os.environ,
@@ -174,6 +202,14 @@ class RuntimeConfigAndCliTests(unittest.TestCase):
         self.assertEqual(state["summary"]["segment_groups_total"], 2)
         self.assertEqual(state["episode_outputs"][0]["episode"], 3)
         self.assertTrue(str(Path(data_dir)) in state["episode_outputs"][0]["final_path"])
+
+    def test_launch_supervisor_window_avoids_bash_interpolation_for_thread_id(self) -> None:
+        script_path = ROOT / "tools" / "launch_supervisor_window.cmd"
+        script = script_path.read_text(encoding="utf-8")
+
+        self.assertIn('wsl.exe env ^', script)
+        self.assertIn('"CODEX_THREAD_ID=%CODEX_THREAD_ID%"', script)
+        self.assertNotIn("bash -lc", script)
 
 
 if __name__ == "__main__":
